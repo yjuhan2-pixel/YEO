@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="ko" class="h-full bg-slate-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>세아씨엠 설비팀 고장현황 및 분석 시스템</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        seah: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#005bac', // SeAH Blue
+                            600: '#00488a',
+                            700: '#00366b',
+                            800: '#00264d',
+                            900: '#001733',
+                            accent: '#ff6b00'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts Inter / Noto Sans KR -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        @media print {
+            header, nav, .no-print { display: none !important; }
+            body { background: white !important; color: black !important; }
+            .print-full { width: 100% !important; max-width: 100% !important; }
+        }
+    </style>
+</head>
+<body class="h-full text-slate-100 flex flex-col antialiased bg-slate-950">
+
+    <!-- Top Header Navigation -->
+    <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo & Title -->
+                <div class="flex items-center space-x-3">
+                    <div class="bg-gradient-to-r from-blue-600 to-cyan-500 p-2.5 rounded-xl shadow-lg">
+                        <i class="fa-solid fa-industry text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">SeAH CM</span>
+                            <h1 class="text-lg font-bold text-white tracking-wide">설비팀 고장현황 분석 시스템</h1>
+                        </div>
+                        <p class="text-xs text-slate-400 hidden sm:block">Equipment Breakdown Analysis & Maintenance Dashboard</p>
+                    </div>
+                </div>
+
+                <!-- Header Right Action Controls -->
+                <div class="flex items-center space-x-3">
+                    <button onclick="openSettingsModal()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-2 rounded-lg transition flex items-center space-x-1.5 cursor-pointer mr-2">
+                        <i class="fa-solid fa-cloud-arrow-up text-amber-400"></i>
+                        <span class="hidden md:inline">DB 연동 설정</span>
+                    </button>
+                    <button id="btn-preload-demo" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-2 rounded-lg transition flex items-center space-x-1.5">
+                        <i class="fa-solid fa-rotate text-blue-400"></i>
+                        <span class="hidden md:inline">샘플데이터 재로딩</span>
+                    </button>
+                    <button id="btn-export-csv" class="text-xs bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/50 px-3 py-2 rounded-lg transition flex items-center space-x-1.5">
+                        <i class="fa-solid fa-file-excel text-emerald-400"></i>
+                        <span class="hidden md:inline">CSV 내보내기</span>
+                    </button>
+                    <!-- 고장 등록 버튼: onclick 이벤트 직접 연결로 즉각 반응 보장 -->
+                    <button id="btn-open-modal" onclick="openModal()" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-medium px-3.5 py-2 rounded-lg transition shadow-lg shadow-blue-600/30 flex items-center space-x-1.5 cursor-pointer">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>고장 등록</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs & Global Filters -->
+    <div class="bg-slate-900/60 border-b border-slate-800 backdrop-blur-md sticky top-16 z-20 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row md:items-center justify-between py-2 gap-3">
+                <!-- Navigation Tabs -->
+                <nav class="flex space-x-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800/80 self-start md:self-auto">
+                    <button id="tab-dashboard" class="tab-btn px-4 py-1.5 rounded-lg text-xs font-semibold transition text-white bg-blue-600 shadow-sm flex items-center space-x-2" onclick="switchTab('dashboard')">
+                        <i class="fa-solid fa-chart-pie"></i>
+                        <span>종합 대시보드</span>
+                    </button>
+                    <button id="tab-pareto" class="tab-btn px-4 py-1.5 rounded-lg text-xs font-semibold transition text-slate-400 hover:text-white flex items-center space-x-2" onclick="switchTab('pareto')">
+                        <i class="fa-solid fa-chart-bar"></i>
+                        <span>파레토 & 설비별 분석</span>
+                    </button>
+                    <button id="tab-table" class="tab-btn px-4 py-1.5 rounded-lg text-xs font-semibold transition text-slate-400 hover:text-white flex items-center space-x-2" onclick="switchTab('table')">
+                        <i class="fa-solid fa-table"></i>
+                        <span>고장 이력 관리</span>
+                    </button>
+                    <button id="tab-report" class="tab-btn px-4 py-1.5 rounded-lg text-xs font-semibold transition text-slate-400 hover:text-white flex items-center space-x-2" onclick="switchTab('report')">
+                        <i class="fa-solid fa-file-contract"></i>
+                        <span>분석 리포트</span>
+                    </button>
+                </nav>
+
+                <!-- Filters Toolbar -->
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <div class="flex items-center bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1">
+                        <i class="fa-regular fa-calendar text-slate-400 mr-2"></i>
+                        <input type="date" id="filter-start-date" class="bg-transparent text-slate-200 focus:outline-none w-28">
+                        <span class="text-slate-500 mx-1">~</span>
+                        <input type="date" id="filter-end-date" class="bg-transparent text-slate-200 focus:outline-none w-28">
+                    </div>
+                    <select id="filter-line" class="bg-slate-900 border border-slate-800 text-slate-200 rounded-lg px-2.5 py-1 focus:outline-none focus:border-blue-500">
+                        <option value="ALL">전체 라인</option>
+                        <option value="1CCL">1CCL (컬러강판)</option>
+                        <option value="2CCL">2CCL (컬러강판)</option>
+                        <option value="CGL">CGL (도금라인)</option>
+                        <option value="PCM">PCM (산세냉간)</option>
+                        <option value="유틸리티">유틸리티/공통</option>
+                    </select>
+                    <select id="filter-category" class="bg-slate-900 border border-slate-800 text-slate-200 rounded-lg px-2.5 py-1 focus:outline-none focus:border-blue-500">
+                        <option value="ALL">전체 고장유형</option>
+                        <option value="기계">기계</option>
+                        <option value="전기">전기</option>
+                        <option value="계장/제어">계장/제어</option>
+                        <option value="유압/공압">유압/공압</option>
+                        <option value="작업/운전">작업/운전</option>
+                    </select>
+                    <button id="btn-reset-filters" class="bg-slate-800 hover:bg-slate-700 text-slate-300 p-1.5 rounded-lg border border-slate-700 transition" title="필터 초기화">
+                        <i class="fa-solid fa-arrows-rotate"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- KPI Summary Cards Section -->
+        <section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <!-- Total Count -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group hover:border-slate-700 transition">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-medium">총 고장 건수</span>
+                    <div class="p-2 bg-blue-500/10 rounded-lg text-blue-400"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                </div>
+                <div>
+                    <div id="kpi-total-count" class="text-2xl font-bold text-white">0 <span class="text-xs text-slate-400 font-normal">건</span></div>
+                    <div class="text-[10px] text-slate-400 mt-1 flex items-center">
+                        <span id="kpi-total-diff" class="text-emerald-400 mr-1"><i class="fa-solid fa-check"></i></span>
+                        <span>선택 기간 집계</span>
+                    </div>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500"></div>
+            </div>
+
+            <!-- Total Downtime -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group hover:border-slate-700 transition">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-medium">총 비가동 시간</span>
+                    <div class="p-2 bg-rose-500/10 rounded-lg text-rose-400"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                </div>
+                <div>
+                    <div id="kpi-total-downtime" class="text-2xl font-bold text-white">0 <span class="text-xs text-slate-400 font-normal">분</span></div>
+                    <div id="kpi-downtime-hours" class="text-[11px] text-slate-400 mt-1">0.0 시간</div>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-500"></div>
+            </div>
+
+            <!-- MTTR -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group hover:border-slate-700 transition" title="Mean Time To Repair (평균 수리 시간)">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-medium">MTTR (평균수리)</span>
+                    <div class="p-2 bg-amber-500/10 rounded-lg text-amber-400"><i class="fa-solid fa-wrench"></i></div>
+                </div>
+                <div>
+                    <div id="kpi-mttr" class="text-2xl font-bold text-amber-400">0 <span class="text-xs text-slate-400 font-normal">분/건</span></div>
+                    <div class="text-[10px] text-slate-400 mt-1">목표: 60분 이내</div>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500"></div>
+            </div>
+
+            <!-- MTBF -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group hover:border-slate-700 transition" title="Mean Time Between Failures (평균 고장 간격)">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-medium">MTBF (고장간격)</span>
+                    <div class="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><i class="fa-solid fa-shield-heart"></i></div>
+                </div>
+                <div>
+                    <div id="kpi-mtbf" class="text-2xl font-bold text-emerald-400">0 <span class="text-xs text-slate-400 font-normal">시간</span></div>
+                    <div class="text-[10px] text-slate-400 mt-1">가동 신뢰성 지표</div>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500"></div>
+            </div>
+
+            <!-- Maintenance Cost -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group hover:border-slate-700 transition">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-medium">총 수리 비용</span>
+                    <div class="p-2 bg-purple-500/10 rounded-lg text-purple-400"><i class="fa-solid fa-coins"></i></div>
+                </div>
+                <div>
+                    <div id="kpi-total-cost" class="text-2xl font-bold text-white">0 <span class="text-xs text-slate-400 font-normal">만원</span></div>
+                    <div class="text-[10px] text-slate-400 mt-1">자재/외주 정비비</div>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500"></div>
+            </div>
+
+            <!-- Max Downtime Line -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group hover:border-slate-700 transition">
+                <div class="flex items-center justify-between text-slate-400 mb-2">
+                    <span class="text-xs font-medium">최다 정지 라인</span>
+                    <div class="p-2 bg-cyan-500/10 rounded-lg text-cyan-400"><i class="fa-solid fa-industry"></i></div>
+                </div>
+                <div>
+                    <div id="kpi-max-line" class="text-xl font-bold text-cyan-400 truncate">-</div>
+                    <div id="kpi-max-line-detail" class="text-[10px] text-slate-400 mt-1">0건 (0분)</div>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-cyan-500"></div>
+            </div>
+        </section>
+
+        <!-- TAB 1: 종합 대시보드 VIEW -->
+        <div id="view-dashboard" class="space-y-6">
+            <!-- Top Charts Row -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Monthly Trend Chart (2 cols) -->
+                <div class="lg:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-chart-line text-blue-400"></i>
+                            <h3 class="font-bold text-slate-100 text-sm">월별 고장건수 및 비가동 추이</h3>
+                        </div>
+                        <span class="text-[11px] text-slate-400 bg-slate-800 px-2 py-1 rounded">건수 & 비가동시간(분)</span>
+                    </div>
+                    <div class="h-64 relative">
+                        <canvas id="chart-monthly-trend"></canvas>
+                    </div>
+                </div>
+
+                <!-- Category Doughnut Chart (1 col) -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-pie-chart text-amber-400"></i>
+                            <h3 class="font-bold text-slate-100 text-sm">고장 유형별 비율</h3>
+                        </div>
+                        <span class="text-[11px] text-slate-400 bg-slate-800 px-2 py-1 rounded">분야별 점유율</span>
+                    </div>
+                    <div class="h-64 relative flex items-center justify-center">
+                        <canvas id="chart-category-pie"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Middle Row: Line Analysis & Recent Critical Incidents -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Line Breakdown Chart (2 cols) -->
+                <div class="lg:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-chart-column text-emerald-400"></i>
+                            <h3 class="font-bold text-slate-100 text-sm">라인별 고장시간 및 건수 비교</h3>
+                        </div>
+                    </div>
+                    <div class="h-64 relative">
+                        <canvas id="chart-line-breakdown"></canvas>
+                    </div>
+                </div>
+
+                <!-- Recent Top Downtime Incidents List (1 col) -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-bell text-rose-400"></i>
+                            <h3 class="font-bold text-slate-100 text-sm">최대 비가동 고장 TOP 5</h3>
+                        </div>
+                        <span class="text-[10px] text-slate-400">장시간 정지</span>
+                    </div>
+                    <div id="top-incidents-list" class="space-y-2.5 overflow-y-auto max-h-64 pr-1 flex-1">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: 파레토 & 설비별 분석 VIEW -->
+        <div id="view-pareto" class="space-y-6 hidden">
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-chart-line-up text-amber-400 text-lg"></i>
+                            <h3 class="font-bold text-slate-100 text-base">설비별 비가동 파레토(Pareto) 분석 (80/20 법칙)</h3>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">상위 주요 설비가 전체 비가동 시간의 대부분을 차지하는지 집중 관리 포인트를 도출합니다.</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs text-slate-400">정렬 기준:</span>
+                        <select id="pareto-metric" class="bg-slate-800 border border-slate-700 text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none" onchange="renderParetoChart()">
+                            <option value="downtime">비가동 시간 (분)</option>
+                            <option value="count">고장 발생 건수</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="h-80 relative">
+                    <canvas id="chart-pareto"></canvas>
+                </div>
+            </div>
+
+            <!-- Equipment Failure Matrix & MTTR Table -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Equipment Rank Table -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm">
+                    <h3 class="font-bold text-slate-100 text-sm mb-3 flex items-center">
+                        <i class="fa-solid fa-list-ol text-blue-400 mr-2"></i>
+                        설비별 고장 집계 및 MTTR Rank
+                    </h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-950 text-slate-400 uppercase text-[10px]">
+                                <tr>
+                                    <th class="p-2 rounded-l">라인</th>
+                                    <th class="p-2">설비명</th>
+                                    <th class="p-2 text-center">건수</th>
+                                    <th class="p-2 text-right">총시간(분)</th>
+                                    <th class="p-2 text-right">MTTR(분)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-eq-summary" class="divide-y divide-slate-800/60">
+                                <!-- Dynamic -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Failure Cause Distribution -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm">
+                    <h3 class="font-bold text-slate-100 text-sm mb-3 flex items-center">
+                        <i class="fa-solid fa-microscope text-purple-400 mr-2"></i>
+                        주요 원인 분석 (Root Cause Distribution)
+                    </h3>
+                    <div class="h-64 relative">
+                        <canvas id="chart-causes-bar"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: 고장 이력 데이터 관리 VIEW -->
+        <div id="view-table" class="space-y-4 hidden">
+            <!-- Table Action Header -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-database text-blue-400"></i>
+                    <h3 class="font-bold text-slate-100 text-sm">고장 이력 상세 데이터</h3>
+                    <span id="data-count-badge" class="bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs px-2.5 py-0.5 rounded-full font-medium">0건</span>
+                </div>
+                
+                <div class="flex items-center space-x-2">
+                    <!-- Search Input -->
+                    <div class="relative flex-1 md:w-64">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+                        <input type="text" id="table-search" placeholder="설비명, 원인, 조치 내용 검색..." class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl pl-8 pr-3 py-2 focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button onclick="openModal()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center space-x-1 whitespace-nowrap shadow-md shadow-blue-600/20 cursor-pointer">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>신규 등록</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Main Data Table -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-950/80 text-slate-400 uppercase text-[11px] border-b border-slate-800">
+                            <tr>
+                                <th class="py-3 px-4">날짜</th>
+                                <th class="py-3 px-3">라인</th>
+                                <th class="py-3 px-3">설비명</th>
+                                <th class="py-3 px-3">유형</th>
+                                <th class="py-3 px-3 text-right">정지(분)</th>
+                                <th class="py-3 px-4">고장명</th>
+                                <th class="py-3 px-4">고장 원인</th>
+                                <th class="py-3 px-4">조치 내역</th>
+                                <th class="py-3 px-3">담당자</th>
+                                <th class="py-3 px-3 text-right">비용(만원)</th>
+                                <th class="py-3 px-3 text-center">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody id="main-data-tbody" class="divide-y divide-slate-800/60 font-normal">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Empty State Container -->
+                <div id="table-empty-state" class="hidden py-12 text-center text-slate-500">
+                    <i class="fa-solid fa-folder-open text-4xl mb-3 text-slate-600"></i>
+                    <p class="text-sm">조건에 일치하는 고장 이력이 없습니다.</p>
+                </div>
+
+                <!-- Table Footer / Pagination -->
+                <div class="bg-slate-950/60 px-4 py-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                    <div>
+                        표시 항목: <span id="pagination-info" class="font-medium text-slate-200">1-10 / 총 0건</span>
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <button id="btn-prev-page" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:hover:bg-slate-800 transition">이전</button>
+                        <span id="page-number-display" class="px-3 py-1 font-semibold text-slate-200">1</span>
+                        <button id="btn-next-page" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:hover:bg-slate-800 transition">다음</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: 분석 리포트 VIEW -->
+        <div id="view-report" class="space-y-6 hidden print-full">
+            <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-sm">
+                <div class="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-800 pb-4 mb-6 gap-3">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="bg-blue-600 text-white text-xs px-2.5 py-0.5 rounded font-bold">AUTOMATED</span>
+                            <h2 class="text-xl font-bold text-white">세아씨엠 설비 고장 분석 및 개선 리포트</h2>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">현재 필터링된 데이터에 기반하여 생성된 설비 보전 종합 평가서입니다.</p>
+                    </div>
+                    <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs border border-slate-700 px-4 py-2 rounded-xl transition flex items-center space-x-2 self-start md:self-auto cursor-pointer no-print">
+                        <i class="fa-solid fa-print"></i>
+                        <span>인쇄 / PDF 저장</span>
+                    </button>
+                </div>
+
+                <!-- Report Content Section -->
+                <div class="space-y-6 text-sm text-slate-300">
+                    <!-- Executive Summary Box -->
+                    <div class="bg-blue-950/30 border border-blue-800/40 rounded-xl p-4">
+                        <h4 class="font-bold text-blue-400 mb-2 flex items-center">
+                            <i class="fa-solid fa-circle-info mr-2"></i> 종합 요약 (Executive Summary)
+                        </h4>
+                        <p id="report-summary-text" class="text-xs text-slate-300 leading-relaxed">
+                            데이터 분석 중...
+                        </p>
+                    </div>
+
+                    <!-- 3 Column Key Insights -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+                            <div class="text-xs text-slate-400 mb-1">최대 집중 관리 라인</div>
+                            <div id="report-key-line" class="text-lg font-bold text-rose-400">-</div>
+                            <div id="report-key-line-desc" class="text-[11px] text-slate-400 mt-1">비가동 시간 비중 높음</div>
+                        </div>
+                        <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+                            <div class="text-xs text-slate-400 mb-1">취약 고장 원인 유형</div>
+                            <div id="report-key-category" class="text-lg font-bold text-amber-400">-</div>
+                            <div id="report-key-category-desc" class="text-[11px] text-slate-400 mt-1">예방보전 점검 주기 재설정 필요</div>
+                        </div>
+                        <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+                            <div class="text-xs text-slate-400 mb-1">평균 수리 대응성 (MTTR)</div>
+                            <div id="report-key-mttr" class="text-lg font-bold text-emerald-400">-</div>
+                            <div id="report-key-mttr-desc" class="text-[11px] text-slate-400 mt-1">수리 자재 및 정비 숙련도 고려</div>
+                        </div>
+                    </div>
+
+                    <!-- Action Recommendations -->
+                    <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+                        <h4 class="font-bold text-slate-100 text-sm mb-3 flex items-center">
+                            <i class="fa-solid fa-list-check text-emerald-400 mr-2"></i>
+                            설비팀 권장 개선 대책 (Action Items)
+                        </h4>
+                        <ul id="report-actions-list" class="space-y-2 text-xs text-slate-300">
+                            <!-- Populated dynamically -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FIREBASE SETTINGS MODAL -->
+    <div id="settings-modal-backdrop" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-200">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg mx-4 overflow-hidden shadow-2xl transform scale-95 transition-transform duration-200" id="settings-modal-box">
+            <div class="bg-slate-950 px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <div class="p-2 bg-amber-500/20 text-amber-400 rounded-lg">
+                        <i class="fa-solid fa-server"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-100 text-base">Firebase 클라우드 연동 설정</h3>
+                </div>
+                <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-white p-1 rounded-lg transition cursor-pointer">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4 text-xs text-slate-200">
+                <p class="text-slate-400 text-xs leading-relaxed">
+                    데이터를 실시간으로 백업하고 여러 기기에서 공유하려면 Firebase 설정 객체(firebaseConfig) 안의 내용을 JSON 형식으로 붙여넣어 주세요.<br>
+                    <span class="text-blue-400">※ 설정을 비워두시면 브라우저 내부(로컬) 저장소만 사용합니다.</span>
+                </p>
+                <div>
+                    <textarea id="settings-firebase-config" rows="9" spellcheck="false" placeholder='{
+  "apiKey": "AIzaSy...",
+  "authDomain": "...",
+  "projectId": "...",
+  "storageBucket": "...",
+  "messagingSenderId": "...",
+  "appId": "..."
+}' class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500 font-mono text-[11px] resize-none"></textarea>
+                </div>
+                <div class="pt-2 flex items-center justify-between">
+                    <button type="button" onclick="clearFirebaseConfig()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 font-medium transition cursor-pointer border border-slate-700">
+                        설정 비우기
+                    </button>
+                    <div class="flex space-x-3">
+                        <button type="button" onclick="closeSettingsModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition cursor-pointer">
+                            취소
+                        </button>
+                        <button type="button" onclick="saveFirebaseConfig()" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-600/30 transition cursor-pointer">
+                            저장 및 적용
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CREATE / EDIT INCIDENT MODAL -->
+    <div id="modal-backdrop" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-200">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl mx-4 overflow-hidden shadow-2xl transform scale-95 transition-transform duration-200" id="modal-box">
+            <!-- Modal Header -->
+            <div class="bg-slate-950 px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <div class="p-2 bg-blue-600/20 text-blue-400 rounded-lg">
+                        <i class="fa-solid fa-wrench"></i>
+                    </div>
+                    <h3 id="modal-title" class="font-bold text-slate-100 text-base">고장 이력 신규 등록</h3>
+                </div>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white p-1 rounded-lg transition cursor-pointer">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal Form Body -->
+            <form id="incident-form" class="p-6 space-y-4 text-xs text-slate-200">
+                <input type="hidden" id="form-id">
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">고장 일자 <span class="text-rose-400">*</span></label>
+                        <input type="date" id="form-date" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">해당 라인 <span class="text-rose-400">*</span></label>
+                        <select id="form-line" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500">
+                            <option value="1CCL">1CCL (컬러강판)</option>
+                            <option value="2CCL">2CCL (컬러강판)</option>
+                            <option value="CGL">CGL (도금라인)</option>
+                            <option value="PCM">PCM (산세냉간)</option>
+                            <option value="유틸리티">유틸리티/공통</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">고장 설비명 <span class="text-rose-400">*</span></label>
+                        <input type="text" id="form-equipment" placeholder="예: Roll Coater #1, Tension Leveler" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">고장 유형 <span class="text-rose-400">*</span></label>
+                        <select id="form-category" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500">
+                            <option value="기계">기계 (Mechanical)</option>
+                            <option value="전기">전기 (Electrical)</option>
+                            <option value="계장/제어">계장/제어 (Instrumentation)</option>
+                            <option value="유압/공압">유압/공압 (Hydraulic)</option>
+                            <option value="작업/운전">작업/운전 (Operation)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">비가동 시간 (분) <span class="text-rose-400">*</span></label>
+                        <input type="number" id="form-downtime" min="1" placeholder="예: 45" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">수리 비용 (만원)</label>
+                        <input type="number" id="form-cost" min="0" placeholder="예: 150" value="0" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">정비 담당자</label>
+                        <input type="text" id="form-technician" placeholder="예: 김설비 과장" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-medium text-slate-400 mb-1">고장명 <span class="text-rose-400">*</span></label>
+                    <input type="text" id="form-incident-name" placeholder="예: MAIN PLC 소손" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-400 mb-1">고장 원인 현황 <span class="text-rose-400">*</span></label>
+                    <input type="text" id="form-cause" placeholder="예: 구동 베어링 파손 및 베어링 하우징 마모" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label class="block font-medium text-slate-400 mb-1">조치 및 정비 내역 <span class="text-rose-400">*</span></label>
+                    <textarea id="form-action" rows="3" placeholder="예: 베어링 신품 교체, 샤프트 정밀 신동 측정 및 얼라인먼트 교정 완료" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500 resize-none"></textarea>
+                </div>
+
+                <!-- Modal Actions -->
+                <div class="pt-2 flex items-center justify-end space-x-3">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition cursor-pointer">
+                        취소
+                    </button>
+                    <button type="submit" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-600/30 transition cursor-pointer">
+                        저장하기
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 border border-slate-700 text-slate-100 px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 transform translate-y-20 opacity-0 transition-all duration-300 z-50 pointer-events-none">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span id="toast-message" class="text-xs font-medium">알림 메시지</span>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC (FIREBASE FIRESTORE + LOCALSTORAGE FALLBACK INTEGRATED) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // =========================================================================
+        // 🚨 [여기] Firebase 콘솔에서 복사한 firebaseConfig 키값으로 아래 항목을 교체해 주세요!
+        // =========================================================================
+        let firebaseConfig = {
+            apiKey: "AIzaSyB3HjFbyK_G2-VkAZQTBMSPTBRYrxCbYAM",
+            authDomain: "seah-yeo.firebaseapp.com",
+            projectId: "seah-yeo",
+            storageBucket: "seah-yeo.firebasestorage.app",
+            messagingSenderId: "428477569834",
+            appId: "1:428477569834:web:2a8bf6b4104649418adc53",
+            measurementId: "G-F8MMQPYRSJ"
+        };
+        try {
+            const storedConfig = localStorage.getItem('user_firebase_config');
+            if (storedConfig) {
+                firebaseConfig = JSON.parse(storedConfig);
+            }
+        } catch(e) {}
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'seah-cm-app';
+
+        // Firebase 연동 상태 판단 및 안전 초기화
+        let app, db, auth, incidentsCollectionRef;
+        let isFirebaseActive = false;
+
+        try {
+            if (firebaseConfig && firebaseConfig.apiKey) {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                incidentsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'incidents');
+                isFirebaseActive = true;
+                console.log("Firebase 클라우드가 성공적으로 초기화되었습니다.");
+            } else {
+                console.info("Firebase 설정값이 기본값이므로 로컬 단일 사용 모드로 동작합니다.");
+            }
+        } catch (error) {
+            console.error("Firebase 초기화 에러:", error);
+        }
+
+        // 초기 샘플 데이터
+        const SAMPLE_DATA = [
+            { id: 'sample-1', date: '2026-08-02', line: '1CCL', equipment: 'Roll Coater #1', category: '유압/공압', downtime: 85, cost: 120, incidentName: '실린더 누유', cause: '유압 밸브 응답 지연 및 메인 실린더 누유', action: '유압 솔레노이드 밸브 및 씰키트 교체 완료', technician: '김민수 과장' },
+            { id: 'sample-2', date: '2026-08-05', line: 'CGL', equipment: 'Zinc Pot Inductor', category: '전기', downtime: 180, cost: 450, incidentName: '과전류 트립', cause: '코일 절연 열화로 인한 과전류 트립', action: '보조 인덕터 절연 저항 측정 및 코일 릴레이 교체', technician: '박정호 차장' },
+            { id: 'sample-3', date: '2026-08-08', line: 'PCM', equipment: 'Tension Leveler', category: '기계', downtime: 120, cost: 230, incidentName: '베어링 과열', cause: '워크롤 베어링 과열 및 소음 발생', action: '워크롤 베어링 조립체 교체 및 구리스 재주입', technician: '최성훈 대리' },
+            { id: 'sample-4', date: '2026-08-10', line: '2CCL', equipment: 'Finish Oven Fan', category: '기계', downtime: 45, cost: 50, incidentName: '팬 벨트 이탈', cause: '오븐 블로워 팬 벨트 이탈 및 마모', action: 'V-벨트 신품 교체 및 장력 조정 완료', technician: '이동현 사원' }
+        ];
+
+        // 상태 변수
+        let incidents = [];
+        let filteredIncidents = [];
+        let currentTab = 'dashboard';
+        let currentPage = 1;
+        const itemsPerPage = 7;
+        let currentUser = null;
+
+        // Chart 인스턴스
+        let chartMonthlyTrend = null;
+        let chartCategoryPie = null;
+        let chartLineBreakdown = null;
+        let chartPareto = null;
+        let chartCausesBar = null;
+
+        // DOM 로드 완료 시 초기화
+        document.addEventListener('DOMContentLoaded', async () => {
+            setupDefaultDates();
+            bindEventListeners();
+            loadLocalStorageData();
+
+            if (isFirebaseActive) {
+                await initFirebaseAuth();
+            } else {
+                applyFilters();
+            }
+        });
+
+        // LocalStorage 데이터 로딩 (Firebase 미연동 시 안전 장치)
+        function loadLocalStorageData() {
+            const stored = localStorage.getItem('seah_cm_incidents');
+            if (stored) {
+                try {
+                    incidents = JSON.parse(stored);
+                } catch (e) {
+                    incidents = [...SAMPLE_DATA];
+                }
+            } else {
+                incidents = [...SAMPLE_DATA];
+            }
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('seah_cm_incidents', JSON.stringify(incidents));
+        }
+
+        // Firebase 인증
+        async function initFirebaseAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Firebase 인증 오류:", error);
+            }
+
+            onAuthStateChanged(auth, (user) => {
+                currentUser = user;
+                if (user && isFirebaseActive) {
+                    subscribeToFirestore();
+                }
+            });
+        }
+
+        // Firestore 실시간 수신 (onSnapshot)
+        function subscribeToFirestore() {
+            if (!currentUser || !isFirebaseActive) return;
+
+            onSnapshot(incidentsCollectionRef, (snapshot) => {
+                if (!snapshot.empty) {
+                    incidents = snapshot.docs.map(docSnap => ({
+                        id: docSnap.id,
+                        ...docSnap.data()
+                    }));
+                }
+                applyFilters();
+            }, (error) => {
+                console.error("Firestore 수신 에러:", error);
+                showToast("클라우드 데이터를 불러오는 중 오류가 발생했습니다.");
+            });
+        }
+
+        // 기본 검색 날짜 세팅 (최근 6개월)
+        function setupDefaultDates() {
+            const today = new Date();
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(today.getMonth() - 5);
+            sixMonthsAgo.setDate(1);
+
+            document.getElementById('filter-end-date').value = today.toISOString().split('T')[0];
+            document.getElementById('filter-start-date').value = sixMonthsAgo.toISOString().split('T')[0];
+        }
+
+        // Event Listener 바인딩
+        function bindEventListeners() {
+            document.getElementById('filter-start-date').addEventListener('change', applyFilters);
+            document.getElementById('filter-end-date').addEventListener('change', applyFilters);
+            document.getElementById('filter-line').addEventListener('change', applyFilters);
+            document.getElementById('filter-category').addEventListener('change', applyFilters);
+            
+            document.getElementById('btn-reset-filters').addEventListener('click', () => {
+                setupDefaultDates();
+                document.getElementById('filter-line').value = 'ALL';
+                document.getElementById('filter-category').value = 'ALL';
+                applyFilters();
+                showToast('필터가 초기화되었습니다.');
+            });
+
+            // 샘플 데이터 재로드
+            document.getElementById('btn-preload-demo').addEventListener('click', async () => {
+                if (confirm('샘플 데이터로 초기화하시겠습니까?')) {
+                    if (isFirebaseActive && currentUser) {
+                        showToast('클라우드에 샘플 데이터를 등록하는 중입니다...');
+                        for (const item of SAMPLE_DATA) {
+                            await addDoc(incidentsCollectionRef, item);
+                        }
+                    } else {
+                        incidents = [...SAMPLE_DATA];
+                        saveToLocalStorage();
+                        applyFilters();
+                        showToast('샘플 데이터가 로드되었습니다.');
+                    }
+                }
+            });
+
+            document.getElementById('btn-export-csv').addEventListener('click', exportToCSV);
+            document.getElementById('incident-form').addEventListener('submit', handleFormSubmit);
+
+            document.getElementById('table-search').addEventListener('input', () => {
+                currentPage = 1;
+                renderTable();
+            });
+            document.getElementById('btn-prev-page').addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderTable();
+                }
+            });
+            document.getElementById('btn-next-page').addEventListener('click', () => {
+                const maxPage = Math.ceil(getSearchedIncidents().length / itemsPerPage) || 1;
+                if (currentPage < maxPage) {
+                    currentPage++;
+                    renderTable();
+                }
+            });
+
+            // 글로벌 함수 연결
+            window.switchTab = switchTab;
+            window.openModal = openModal;
+            window.closeModal = closeModal;
+            window.editIncident = editIncident;
+            window.deleteIncident = deleteIncident;
+            window.renderParetoChart = renderParetoChart;
+            window.openSettingsModal = openSettingsModal;
+            window.closeSettingsModal = closeSettingsModal;
+            window.saveFirebaseConfig = saveFirebaseConfig;
+            window.clearFirebaseConfig = clearFirebaseConfig;
+        }
+
+        // Firebase 연동 설정 모달
+        function openSettingsModal() {
+            const configStr = localStorage.getItem('user_firebase_config');
+            if (configStr) {
+                try {
+                    document.getElementById('settings-firebase-config').value = JSON.stringify(JSON.parse(configStr), null, 2);
+                } catch(e) {
+                    document.getElementById('settings-firebase-config').value = configStr;
+                }
+            } else {
+                document.getElementById('settings-firebase-config').value = '';
+            }
+            
+            const modalBackdrop = document.getElementById('settings-modal-backdrop');
+            const modalBox = document.getElementById('settings-modal-box');
+            modalBackdrop.classList.remove('hidden');
+            setTimeout(() => {
+                modalBackdrop.classList.remove('opacity-0');
+                modalBox.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeSettingsModal() {
+            const modalBackdrop = document.getElementById('settings-modal-backdrop');
+            const modalBox = document.getElementById('settings-modal-box');
+            modalBackdrop.classList.add('opacity-0');
+            modalBox.classList.add('scale-95');
+            setTimeout(() => {
+                modalBackdrop.classList.add('hidden');
+            }, 200);
+        }
+
+        function saveFirebaseConfig() {
+            const val = document.getElementById('settings-firebase-config').value.trim();
+            if (!val) {
+                clearFirebaseConfig();
+                return;
+            }
+            try {
+                const parsed = JSON.parse(val);
+                if (!parsed.apiKey || !parsed.projectId) {
+                    alert('올바른 Firebase 설정 객체(JSON) 형식이 아닙니다. apiKey와 projectId가 포함되어야 합니다.');
+                    return;
+                }
+                localStorage.setItem('user_firebase_config', JSON.stringify(parsed));
+                alert('설정이 저장되었습니다. 시스템을 재시작합니다.');
+                window.location.reload();
+            } catch (e) {
+                alert('JSON 형식이 올바르지 않습니다. 복사한 코드를 확인해주세요.');
+            }
+        }
+
+        function clearFirebaseConfig() {
+            localStorage.removeItem('user_firebase_config');
+            document.getElementById('settings-firebase-config').value = '';
+            if (confirm('설정이 초기화되었습니다. 로컬 모드로 전환하기 위해 새로고침 하시겠습니까?')) {
+                window.location.reload();
+            }
+        }
+
+        // 팝업 열기 (신규 등록 / 수정)
+        function openModal(editId = null) {
+            const modalBackdrop = document.getElementById('modal-backdrop');
+            const modalBox = document.getElementById('modal-box');
+            const form = document.getElementById('incident-form');
+            const title = document.getElementById('modal-title');
+
+            form.reset();
+
+            if (editId) {
+                const item = incidents.find(i => i.id === editId);
+                if (!item) return;
+
+                title.innerText = '고장 이력 수정';
+                document.getElementById('form-id').value = item.id;
+                document.getElementById('form-date').value = item.date;
+                document.getElementById('form-line').value = item.line;
+                document.getElementById('form-equipment').value = item.equipment;
+                document.getElementById('form-category').value = item.category;
+                document.getElementById('form-downtime').value = item.downtime;
+                document.getElementById('form-cost').value = item.cost || 0;
+                document.getElementById('form-technician').value = item.technician || '';
+                document.getElementById('form-incident-name').value = item.incidentName || '';
+                document.getElementById('form-cause').value = item.cause;
+                document.getElementById('form-action').value = item.action;
+            } else {
+                title.innerText = '고장 이력 신규 등록';
+                document.getElementById('form-id').value = '';
+                document.getElementById('form-date').value = new Date().toISOString().split('T')[0];
+                document.getElementById('form-incident-name').value = '';
+            }
+
+            modalBackdrop.classList.remove('hidden');
+            setTimeout(() => {
+                modalBackdrop.classList.remove('opacity-0');
+                modalBox.classList.remove('scale-95');
+            }, 10);
+        }
+
+        // 팝업 닫기
+        function closeModal() {
+            const modalBackdrop = document.getElementById('modal-backdrop');
+            const modalBox = document.getElementById('modal-box');
+
+            modalBackdrop.classList.add('opacity-0');
+            modalBox.classList.add('scale-95');
+            setTimeout(() => {
+                modalBackdrop.classList.add('hidden');
+            }, 200);
+        }
+
+        // 폼 제출 처리 (등록/수정)
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+
+            const editId = document.getElementById('form-id').value;
+            const formData = {
+                date: document.getElementById('form-date').value,
+                line: document.getElementById('form-line').value,
+                equipment: document.getElementById('form-equipment').value.trim(),
+                category: document.getElementById('form-category').value,
+                downtime: Number(document.getElementById('form-downtime').value),
+                cost: Number(document.getElementById('form-cost').value || 0),
+                technician: document.getElementById('form-technician').value.trim(),
+                incidentName: document.getElementById('form-incident-name').value.trim(),
+                cause: document.getElementById('form-cause').value.trim(),
+                action: document.getElementById('form-action').value.trim()
+            };
+
+            try {
+                if (isFirebaseActive && currentUser) {
+                    if (editId) {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'incidents', editId);
+                        await updateDoc(docRef, formData);
+                        showToast('클라우드 고장 이력이 수정되었습니다.');
+                    } else {
+                        await addDoc(incidentsCollectionRef, formData);
+                        showToast('새 고장 이력이 클라우드에 등록되었습니다.');
+                    }
+                } else {
+                    // LocalStorage 모드
+                    if (editId) {
+                        const idx = incidents.findIndex(i => i.id === editId);
+                        if (idx !== -1) incidents[idx] = { id: editId, ...formData };
+                        showToast('고장 이력이 수정되었습니다.');
+                    } else {
+                        const newItem = { id: 'loc-' + Date.now(), ...formData };
+                        incidents.unshift(newItem);
+                        showToast('새 고장 이력이 등록되었습니다.');
+                    }
+                    saveToLocalStorage();
+                    applyFilters();
+                }
+                closeModal();
+            } catch (err) {
+                console.error("저장 중 에러:", err);
+                showToast("저장 중 오류가 발생했습니다.");
+            }
+        }
+
+        // 고장 항목 수정
+        function editIncident(id) {
+            openModal(id);
+        }
+
+        // 고장 항목 삭제
+        async function deleteIncident(id) {
+            if (!confirm('해당 고장 이력을 삭제하시겠습니까?')) return;
+
+            try {
+                if (isFirebaseActive && currentUser) {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'incidents', id);
+                    await deleteDoc(docRef);
+                    showToast('클라우드에서 삭제되었습니다.');
+                } else {
+                    incidents = incidents.filter(i => i.id !== id);
+                    saveToLocalStorage();
+                    applyFilters();
+                    showToast('고장 이력이 삭제되었습니다.');
+                }
+            } catch (err) {
+                console.error("삭제 중 오류:", err);
+                showToast("삭제 실패");
+            }
+        }
+
+        // 필터 적용
+        function applyFilters() {
+            const startDate = document.getElementById('filter-start-date').value;
+            const endDate = document.getElementById('filter-end-date').value;
+            const line = document.getElementById('filter-line').value;
+            const category = document.getElementById('filter-category').value;
+
+            filteredIncidents = incidents.filter(item => {
+                const matchDate = (!startDate || item.date >= startDate) && (!endDate || item.date <= endDate);
+                const matchLine = (line === 'ALL' || item.line === line);
+                const matchCategory = (category === 'ALL' || item.category === category);
+                return matchDate && matchLine && matchCategory;
+            });
+
+            filteredIncidents.sort((a, b) => new Date(b.date) - new Date(a.date));
+            currentPage = 1;
+            updateAppView();
+        }
+
+        // 탭 전환
+        function switchTab(tabName) {
+            currentTab = tabName;
+            ['dashboard', 'pareto', 'table', 'report'].forEach(tab => {
+                const viewEl = document.getElementById(`view-${tab}`);
+                const btnEl = document.getElementById(`tab-${tab}`);
+                if (tab === tabName) {
+                    viewEl.classList.remove('hidden');
+                    btnEl.className = 'tab-btn px-4 py-1.5 rounded-lg text-xs font-semibold transition text-white bg-blue-600 shadow-sm flex items-center space-x-2';
+                } else {
+                    viewEl.classList.add('hidden');
+                    btnEl.className = 'tab-btn px-4 py-1.5 rounded-lg text-xs font-semibold transition text-slate-400 hover:text-white flex items-center space-x-2';
+                }
+            });
+
+            if (tabName === 'dashboard') renderDashboardCharts();
+            if (tabName === 'pareto') renderParetoSection();
+            if (tabName === 'table') renderTable();
+            if (tabName === 'report') renderReportSection();
+        }
+
+        // 메인 화면 전체 업데이트
+        function updateAppView() {
+            calculateKPIs();
+            renderDashboardCharts();
+            renderParetoSection();
+            renderTable();
+            renderReportSection();
+        }
+
+        // KPI 계산
+        function calculateKPIs() {
+            const totalCount = filteredIncidents.length;
+            const totalDowntime = filteredIncidents.reduce((sum, item) => sum + Number(item.downtime), 0);
+            const totalCost = filteredIncidents.reduce((sum, item) => sum + Number(item.cost || 0), 0);
+
+            const mttr = totalCount > 0 ? (totalDowntime / totalCount).toFixed(1) : 0;
+
+            const startDate = new Date(document.getElementById('filter-start-date').value || '2026-01-01');
+            const endDate = new Date(document.getElementById('filter-end-date').value || new Date());
+            const daysDiff = Math.max(1, Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)));
+            const estimatedTotalOperatingHours = daysDiff * 24 * 4;
+            const mtbf = totalCount > 0 ? Math.round((estimatedTotalOperatingHours - (totalDowntime/60)) / totalCount) : estimatedTotalOperatingHours;
+
+            const lineMap = {};
+            filteredIncidents.forEach(item => {
+                if(!lineMap[item.line]) lineMap[item.line] = { count: 0, downtime: 0 };
+                lineMap[item.line].count += 1;
+                lineMap[item.line].downtime += Number(item.downtime);
+            });
+
+            let maxLineName = '-';
+            let maxLineVal = { count: 0, downtime: 0 };
+            Object.keys(lineMap).forEach(line => {
+                if (lineMap[line].downtime > maxLineVal.downtime) {
+                    maxLineName = line;
+                    maxLineVal = lineMap[line];
+                }
+            });
+
+            document.getElementById('kpi-total-count').innerHTML = `${totalCount} <span class="text-xs text-slate-400 font-normal">건</span>`;
+            document.getElementById('kpi-total-downtime').innerHTML = `${totalDowntime.toLocaleString()} <span class="text-xs text-slate-400 font-normal">분</span>`;
+            document.getElementById('kpi-downtime-hours').innerText = `${(totalDowntime / 60).toFixed(1)} 시간`;
+            document.getElementById('kpi-mttr').innerHTML = `${mttr} <span class="text-xs text-slate-400 font-normal">분/건</span>`;
+            document.getElementById('kpi-mtbf').innerHTML = `${mtbf.toLocaleString()} <span class="text-xs text-slate-400 font-normal">시간</span>`;
+            document.getElementById('kpi-total-cost').innerHTML = `${totalCost.toLocaleString()} <span class="text-xs text-slate-400 font-normal">만원</span>`;
+            
+            document.getElementById('kpi-max-line').innerText = maxLineName;
+            document.getElementById('kpi-max-line-detail').innerText = maxLineName !== '-' ? `${maxLineVal.count}건 (${maxLineVal.downtime}분 정지)` : '고장 없음';
+        }
+
+        // 대시보드 차트 렌더링
+        function renderDashboardCharts() {
+            if (currentTab !== 'dashboard') return;
+
+            // 1. 월별 추이
+            const monthlyData = {};
+            filteredIncidents.forEach(item => {
+                const month = item.date.substring(0, 7);
+                if(!monthlyData[month]) monthlyData[month] = { count: 0, downtime: 0 };
+                monthlyData[month].count += 1;
+                monthlyData[month].downtime += Number(item.downtime);
+            });
+
+            const sortedMonths = Object.keys(monthlyData).sort();
+            const labels = sortedMonths.map(m => m.replace('-', '년 ') + '월');
+            const countArr = sortedMonths.map(m => monthlyData[m].count);
+            const downtimeArr = sortedMonths.map(m => monthlyData[m].downtime);
+
+            if (chartMonthlyTrend) chartMonthlyTrend.destroy();
+            const ctx1 = document.getElementById('chart-monthly-trend').getContext('2d');
+            chartMonthlyTrend = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '비가동 시간(분)',
+                            data: downtimeArr,
+                            backgroundColor: 'rgba(239, 68, 68, 0.5)',
+                            borderColor: '#ef4444',
+                            borderWidth: 1,
+                            yAxisID: 'y1',
+                            borderRadius: 6
+                        },
+                        {
+                            label: '고장 건수',
+                            data: countArr,
+                            type: 'line',
+                            borderColor: '#3b82f6',
+                            backgroundColor: '#3b82f6',
+                            borderWidth: 3,
+                            pointRadius: 4,
+                            yAxisID: 'y'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(51, 65, 85, 0.3)' } },
+                        y: { type: 'linear', position: 'left', ticks: { color: '#3b82f6', font: { size: 10 } }, grid: { display: false } },
+                        y1: { type: 'linear', position: 'right', ticks: { color: '#ef4444', font: { size: 10 } }, grid: { color: 'rgba(51, 65, 85, 0.3)' } }
+                    }
+                }
+            });
+
+            // 2. 카테고리 비율
+            const categoryMap = {};
+            filteredIncidents.forEach(item => {
+                categoryMap[item.category] = (categoryMap[item.category] || 0) + 1;
+            });
+
+            if (chartCategoryPie) chartCategoryPie.destroy();
+            const ctx2 = document.getElementById('chart-category-pie').getContext('2d');
+            chartCategoryPie = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(categoryMap),
+                    datasets: [{
+                        data: Object.values(categoryMap),
+                        backgroundColor: ['#3b82f6', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6'],
+                        borderWidth: 2,
+                        borderColor: '#0f172a'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } } },
+                    cutout: '65%'
+                }
+            });
+
+            // 3. 라인별 고장 정지시간
+            const lineBreakdown = {};
+            filteredIncidents.forEach(item => {
+                if(!lineBreakdown[item.line]) lineBreakdown[item.line] = 0;
+                lineBreakdown[item.line] += Number(item.downtime);
+            });
+
+            if (chartLineBreakdown) chartLineBreakdown.destroy();
+            const ctx3 = document.getElementById('chart-line-breakdown').getContext('2d');
+            chartLineBreakdown = new Chart(ctx3, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(lineBreakdown),
+                    datasets: [{
+                        label: '라인별 총 비가동 시간 (분)',
+                        data: Object.values(lineBreakdown),
+                        backgroundColor: '#10b981',
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { display: false } },
+                        y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(51, 65, 85, 0.3)' } }
+                    }
+                }
+            });
+
+            renderTopIncidentsList();
+        }
+
+        // TOP 5 장시간 정지 고장 리스트
+        function renderTopIncidentsList() {
+            const sorted = [...filteredIncidents].sort((a, b) => b.downtime - a.downtime).slice(0, 5);
+            const container = document.getElementById('top-incidents-list');
+
+            if (sorted.length === 0) {
+                container.innerHTML = `<div class="text-center text-xs text-slate-500 py-6">데이터가 없습니다.</div>`;
+                return;
+            }
+
+            container.innerHTML = sorted.map((item, idx) => `
+                <div class="bg-slate-950/60 border border-slate-800/80 p-2.5 rounded-xl flex items-center justify-between hover:border-slate-700 transition">
+                    <div class="flex items-center space-x-3">
+                        <span class="text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center ${idx === 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-800 text-slate-400'}">${idx + 1}</span>
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <span class="font-bold text-slate-200 text-xs">${item.equipment}</span>
+                                <span class="text-[10px] px-1.5 py-0.2 bg-slate-800 text-blue-400 rounded">${item.line}</span>
+                            </div>
+                            <div class="text-[10px] text-slate-400 line-clamp-1 mt-0.5">${item.cause}</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs font-extrabold text-rose-400">${item.downtime}분</div>
+                        <div class="text-[10px] text-slate-500">${item.date}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 파레토 분석 섹션 렌더링
+        function renderParetoSection() {
+            renderParetoChart();
+            renderEquipmentSummaryTable();
+            renderCausesBarChart();
+        }
+
+        function renderParetoChart() {
+            const metric = document.getElementById('pareto-metric').value;
+            
+            const eqMap = {};
+            filteredIncidents.forEach(item => {
+                const key = `${item.line} - ${item.equipment}`;
+                if (!eqMap[key]) eqMap[key] = { downtime: 0, count: 0 };
+                eqMap[key].downtime += Number(item.downtime);
+                eqMap[key].count += 1;
+            });
+
+            const sortedEq = Object.keys(eqMap).map(key => ({
+                name: key,
+                downtime: eqMap[key].downtime,
+                count: eqMap[key].count,
+                val: eqMap[key][metric]
+            })).sort((a, b) => b.val - a.val);
+
+            const labels = sortedEq.map(i => i.name);
+            const values = sortedEq.map(i => i.val);
+            const totalSum = values.reduce((a, b) => a + b, 0);
+
+            let cumulative = 0;
+            const cumulativePercentages = values.map(v => {
+                cumulative += v;
+                return totalSum > 0 ? ((cumulative / totalSum) * 100).toFixed(1) : 0;
+            });
+
+            if (chartPareto) chartPareto.destroy();
+            const ctx = document.getElementById('chart-pareto').getContext('2d');
+            chartPareto = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: metric === 'downtime' ? '비가동 시간(분)' : '고장 건수',
+                            data: values,
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                            borderRadius: 6,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '누적 비율 (%)',
+                            data: cumulativePercentages,
+                            type: 'line',
+                            borderColor: '#f59e0b',
+                            backgroundColor: '#f59e0b',
+                            borderWidth: 2.5,
+                            pointRadius: 4,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
+                        y: { ticks: { color: '#3b82f6', font: { size: 10 } }, grid: { color: 'rgba(51, 65, 85, 0.3)' } },
+                        y1: { type: 'linear', position: 'right', max: 100, ticks: { color: '#f59e0b', font: { size: 10 } }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // 설비별 집계 및 MTTR 랭킹 표
+        function renderEquipmentSummaryTable() {
+            const eqMap = {};
+            filteredIncidents.forEach(item => {
+                const key = `${item.line}_${item.equipment}`;
+                if(!eqMap[key]) eqMap[key] = { line: item.line, equipment: item.equipment, count: 0, downtime: 0 };
+                eqMap[key].count += 1;
+                eqMap[key].downtime += Number(item.downtime);
+            });
+
+            const sorted = Object.values(eqMap).sort((a, b) => b.downtime - a.downtime);
+            const tbody = document.getElementById('table-eq-summary');
+
+            if (sorted.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-slate-500">데이터가 없습니다.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = sorted.map(item => {
+                const mttr = (item.downtime / item.count).toFixed(0);
+                return `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="p-2 font-medium text-slate-300"><span class="px-1.5 py-0.5 rounded bg-slate-800 text-blue-400 text-[10px]">${item.line}</span></td>
+                        <td class="p-2 font-bold text-white">${item.equipment}</td>
+                        <td class="p-2 text-center text-slate-300">${item.count}</td>
+                        <td class="p-2 text-right font-semibold text-rose-400">${item.downtime.toLocaleString()}</td>
+                        <td class="p-2 text-right text-amber-400 font-bold">${mttr}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // 고장 원인별 가로 바 차트
+        function renderCausesBarChart() {
+            const causeCategoryMap = {};
+            filteredIncidents.forEach(item => {
+                causeCategoryMap[item.category] = (causeCategoryMap[item.category] || 0) + Number(item.downtime);
+            });
+
+            if (chartCausesBar) chartCausesBar.destroy();
+            const ctx = document.getElementById('chart-causes-bar').getContext('2d');
+            chartCausesBar = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(causeCategoryMap),
+                    datasets: [{
+                        label: '유형별 총 비가동(분)',
+                        data: Object.values(causeCategoryMap),
+                        backgroundColor: ['#3b82f6', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6'],
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(51, 65, 85, 0.3)' } },
+                        y: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // 이력 데이터 검색
+        function getSearchedIncidents() {
+            const query = document.getElementById('table-search').value.toLowerCase().trim();
+            if (!query) return filteredIncidents;
+            return filteredIncidents.filter(item => 
+                item.equipment.toLowerCase().includes(query) ||
+                item.line.toLowerCase().includes(query) ||
+                (item.incidentName && item.incidentName.toLowerCase().includes(query)) ||
+                item.cause.toLowerCase().includes(query) ||
+                item.action.toLowerCase().includes(query) ||
+                (item.technician && item.technician.toLowerCase().includes(query))
+            );
+        }
+
+        // 고장 이력 데이터 테이블 렌더링
+        function renderTable() {
+            const list = getSearchedIncidents();
+            document.getElementById('data-count-badge').innerText = `${list.length}건`;
+
+            const emptyState = document.getElementById('table-empty-state');
+            const tbody = document.getElementById('main-data-tbody');
+
+            if (list.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                document.getElementById('pagination-info').innerText = '0건';
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            const totalPages = Math.ceil(list.length / itemsPerPage) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const paginatedItems = list.slice(startIndex, startIndex + itemsPerPage);
+
+            document.getElementById('pagination-info').innerText = `${startIndex + 1}-${Math.min(startIndex + itemsPerPage, list.length)} / 총 ${list.length}건`;
+            document.getElementById('page-number-display').innerText = currentPage;
+
+            document.getElementById('btn-prev-page').disabled = (currentPage === 1);
+            document.getElementById('btn-next-page').disabled = (currentPage === totalPages);
+
+            tbody.innerHTML = paginatedItems.map(item => `
+                <tr class="hover:bg-slate-800/50 transition border-b border-slate-800/40">
+                    <td class="py-3 px-4 font-mono text-slate-300 whitespace-nowrap">${item.date}</td>
+                    <td class="py-3 px-3"><span class="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold text-[10px]">${item.line}</span></td>
+                    <td class="py-3 px-3 font-bold text-white whitespace-nowrap">${item.equipment}</td>
+                    <td class="py-3 px-3"><span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px]">${item.category}</span></td>
+                    <td class="py-3 px-3 text-right font-extrabold text-rose-400 whitespace-nowrap">${item.downtime} 분</td>
+                    <td class="py-3 px-4 text-slate-100 font-bold whitespace-nowrap">${item.incidentName || '-'}</td>
+                    <td class="py-3 px-4 text-slate-300 max-w-xs truncate" title="${item.cause}">${item.cause}</td>
+                    <td class="py-3 px-4 text-slate-400 max-w-xs truncate" title="${item.action}">${item.action}</td>
+                    <td class="py-3 px-3 text-slate-300 whitespace-nowrap">${item.technician || '-'}</td>
+                    <td class="py-3 px-3 text-right font-mono text-slate-200">${item.cost ? Number(item.cost).toLocaleString() : 0} 만원</td>
+                    <td class="py-3 px-3 text-center whitespace-nowrap">
+                        <button onclick="editIncident('${item.id}')" class="text-blue-400 hover:text-blue-300 p-1.5 rounded hover:bg-slate-800 transition mr-1 cursor-pointer" title="수정">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                        <button onclick="deleteIncident('${item.id}')" class="text-rose-400 hover:text-rose-300 p-1.5 rounded hover:bg-slate-800 transition cursor-pointer" title="삭제">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // 자동 분석 리포트 생성기
+        function renderReportSection() {
+            if (filteredIncidents.length === 0) {
+                document.getElementById('report-summary-text').innerText = '선택된 조건에 해당하는 고장 이력 데이터가 없습니다.';
+                document.getElementById('report-key-line').innerText = '-';
+                document.getElementById('report-key-category').innerText = '-';
+                document.getElementById('report-key-mttr').innerText = '-';
+                document.getElementById('report-actions-list').innerHTML = `<li>데이터가 존재하지 않습니다.</li>`;
+                return;
+            }
+
+            const totalCount = filteredIncidents.length;
+            const totalDowntime = filteredIncidents.reduce((s, i) => s + Number(i.downtime), 0);
+            const mttr = (totalDowntime / totalCount).toFixed(1);
+
+            const lineMap = {};
+            filteredIncidents.forEach(i => lineMap[i.line] = (lineMap[i.line] || 0) + Number(i.downtime));
+            const topLine = Object.keys(lineMap).reduce((a, b) => lineMap[a] > lineMap[b] ? a : b);
+
+            const catMap = {};
+            filteredIncidents.forEach(i => catMap[i.category] = (catMap[i.category] || 0) + 1);
+            const topCategory = Object.keys(catMap).reduce((a, b) => catMap[a] > catMap[b] ? a : b);
+
+            document.getElementById('report-summary-text').innerHTML = `
+                본 보고서는 선택된 기간 동안 세아씨엠 설비팀에서 집계한 <strong>총 ${totalCount}건</strong>의 고장 이력(총 비가동 <strong>${totalDowntime.toLocaleString()}분 / ${(totalDowntime/60).toFixed(1)}시간</strong>)을 기반으로 분석되었습니다.<br>
+                현재 가장 취약한 라인은 <strong>${topLine}</strong> 라인으로 전체 정지 시간의 최다 비중을 점유하고 있으며, 고장 유형 관점에서는 <strong>[${topCategory}]</strong> 관련 결함이 가장 빈번하게 발생하고 있습니다.
+            `;
+
+            document.getElementById('report-key-line').innerText = topLine;
+            document.getElementById('report-key-line-desc').innerText = `비가동 약 ${lineMap[topLine]}분 발생`;
+
+            document.getElementById('report-key-category').innerText = topCategory;
+            document.getElementById('report-key-category-desc').innerText = `총 ${catMap[topCategory]}건 발생 (점유율 최고)`;
+
+            document.getElementById('report-key-mttr').innerText = `${mttr}분/건`;
+
+            const actions = [
+                `<strong>[${topLine} 라인 예방보전 강화]</strong>: 최다 비가동 라인인 ${topLine}의 주요 구동부(베어링, 유압 밸브 등) 정밀 점검 스케줄 편성`,
+                `<strong>[${topCategory} 분야 매뉴얼 표준화]</strong>: 가장 다발하는 ${topCategory} 고장에 대한 정비 응답속도 향상을 위해 현장 정비 가이드 및 스페어 부품 이중화 확보`,
+                `<strong>[MTTR 단축 대책]</strong>: 평균 수리시간이 ${mttr}분으로 집계됨에 따라, 고장 사전 감지 센싱(진동/열화상) 및 정비 교육 전개 권장`
+            ];
+
+            document.getElementById('report-actions-list').innerHTML = actions.map(act => `
+                <li class="flex items-start space-x-2 bg-slate-900 border border-slate-800 p-2.5 rounded-lg">
+                    <i class="fa-solid fa-square-check text-blue-400 mt-0.5"></i>
+                    <span>${act}</span>
+                </li>
+            `).join('');
+        }
+
+        // CSV 파일 내보내기
+        function exportToCSV() {
+            if (filteredIncidents.length === 0) {
+                showToast('내보낼 데이터가 없습니다.');
+                return;
+            }
+
+            let csvContent = "\uFEFF"; // UTF-8 BOM
+            csvContent += "날짜,라인,설비명,고장유형,비가동시간(분),고장명,고장원인,조치내역,정비담당자,수리비용(만원)\n";
+
+            filteredIncidents.forEach(item => {
+                const row = [
+                    `"${item.date}"`,
+                    `"${item.line}"`,
+                    `"${item.equipment}"`,
+                    `"${item.category}"`,
+                    `"${item.downtime}"`,
+                    `"${(item.incidentName || '').replace(/"/g, '""')}"`,
+                    `"${(item.cause || '').replace(/"/g, '""')}"`,
+                    `"${(item.action || '').replace(/"/g, '""')}"`,
+                    `"${item.technician || ''}"`,
+                    `"${item.cost || 0}"`
+                ];
+                csvContent += row.join(",") + "\n";
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `세아씨엠_설비고장현황_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast('CSV 파일 다운로드가 시작되었습니다.');
+        }
+
+        // 토스트 알림 표시
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-message');
+
+            toastMsg.innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
